@@ -253,7 +253,8 @@ class Transaction(models.Model):
 
     transaction_id = UUIDFIELD(
         help_text=_("UUID for this transaction"),
-        default=uuid.uuid4)
+        default=uuid.uuid4,
+        max_length=160)
     voids = models.OneToOneField(
         'Transaction',
         blank=True,
@@ -371,7 +372,8 @@ class LedgerEntry(models.Model):
 
     entry_id = UUIDFIELD(
         help_text=_("UUID for this ledger entry"),
-        default=uuid.uuid4)
+        default=uuid.uuid4,
+        max_length=160)
 
     amount = models.DecimalField(
         help_text=_(
