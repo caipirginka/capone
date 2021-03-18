@@ -5,8 +5,12 @@ from enum import Enum
 from functools import reduce
 
 from django.conf import settings
-from django.contrib.contenttypes.fields import GenericForeignKey
-from django.contrib.contenttypes.fields import GenericRelation
+try:
+    from django.contrib.contenttypes.fields import GenericForeignKey
+    from django.contrib.contenttypes.fields import GenericRelation
+except ImportError:
+    from django.contrib.contenttypes.generic import GenericForeignKey
+    from django.contrib.contenttypes.generic import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Q
@@ -14,6 +18,16 @@ from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 
 from capone.exceptions import TransactionBalanceException
+
+try:
+    from models import QuerySet as QUERYSET
+except ImportError:
+    from django.db.models.query import QuerySet as QUERYSET
+    
+try:
+    from models import UUIDField as UUIDFIELD
+except ImportError:
+    from django.db.models import CharField as UUIDFIELD
 
 
 POSITIVE_DEBITS_HELP_TEXT = "Amount for this entry.  Debits are positive, and credits are negative."  # noqa: E501
@@ -66,7 +80,7 @@ class MatchType(Enum):
     EXACT = 'exact'
 
 
-class TransactionQuerySet(models.QuerySet):
+class TransactionQuerySet(QUERYSET):
     def non_void(self):
         return self.filter(
             voided_by__voids_id__isnull=True,
@@ -200,6 +214,23 @@ def get_or_create_manual_transaction_type_id():
     return get_or_create_manual_transaction_type().id
 
 
+if hasattr(TransactionQuerySet, 'as_manager'):
+    TRANSACTIONMANAGER = TransactionQuerySet.as_manager 
+else:
+    class TRANSACTIONMANAGER(models.Manager):
+        """A re-usable Manager to access a custom QuerySet"""
+        def __getattr__(self, attr, *args):
+            try:
+                return getattr(self.__class__, attr, *args)
+            except AttributeError:
+                # don't delegate internal methods to the queryset
+                if attr.startswith('__') and attr.endswith('__'):
+                    raise
+                return getattr(self.get_query_set(), attr, *args)
+    
+        def get_query_set(self):
+            return TransactionQuerySet(self.model, using=self._db)      
+      
 @python_2_unicode_compatible
 class Transaction(models.Model):
     """
@@ -220,7 +251,7 @@ class Transaction(models.Model):
         'Ledger',
         through='LedgerEntry')
 
-    transaction_id = models.UUIDField(
+    transaction_id = UUIDFIELD(
         help_text=_("UUID for this transaction"),
         default=uuid.uuid4)
     voids = models.OneToOneField(
@@ -247,7 +278,7 @@ class Transaction(models.Model):
         default=get_or_create_manual_transaction_type_id,
     )
 
-    objects = TransactionQuerySet.as_manager()
+    objects = TRANSACTIONMANAGER()
 
     def clean(self):
         self.validate()
@@ -338,7 +369,7 @@ class LedgerEntry(models.Model):
         Transaction,
         related_name='entries')
 
-    entry_id = models.UUIDField(
+    entry_id = UUIDFIELD(
         help_text=_("UUID for this ledger entry"),
         default=uuid.uuid4)
 
