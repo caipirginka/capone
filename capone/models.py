@@ -80,6 +80,44 @@ class MatchType(Enum):
     EXACT = 'exact'
 
 
+@python_2_unicode_compatible
+class TransactionType(models.Model):
+    """
+    A user-defined "type" to group `Transactions`.
+
+    By default, has the value `Manual`, which comes from
+    `get_or_create_manual_transaction_type`.
+    """
+    name = models.CharField(
+        help_text=_("Name of this transaction type"),
+        unique=True,
+        max_length=255)
+    description = models.TextField(
+        help_text=_("Any notes to go along with this Transaction."),
+        blank=True)
+    created_at = models.DateTimeField(
+        auto_now_add=True)
+    modified_at = models.DateTimeField(
+        auto_now=True)
+
+    def __str__(self):
+        return "Transaction Type %s" % self.name
+
+    @classmethod
+    def get_or_create_manual_transaction_type(cls):
+        """
+        Callable for getting or creating the default `TransactionType`.
+        """
+        return cls.objects.get_or_create(name='Manual')[0]
+
+    @classmethod
+    def get_or_create_manual_transaction_type_id(cls):
+        """
+        Callable for getting or creating the default `TransactionType` id.
+        """
+        return cls.get_or_create_manual_transaction_type().id
+
+
 class TransactionQuerySet(QUERYSET):
     def non_void(self):
         return self.filter(
@@ -176,44 +214,6 @@ class TransactionQuerySet(QUERYSET):
             raise ValueError("Invalid match_type.")
 
 
-@python_2_unicode_compatible
-class TransactionType(models.Model):
-    """
-    A user-defined "type" to group `Transactions`.
-
-    By default, has the value `Manual`, which comes from
-    `get_or_create_manual_transaction_type`.
-    """
-    name = models.CharField(
-        help_text=_("Name of this transaction type"),
-        unique=True,
-        max_length=255)
-    description = models.TextField(
-        help_text=_("Any notes to go along with this Transaction."),
-        blank=True)
-    created_at = models.DateTimeField(
-        auto_now_add=True)
-    modified_at = models.DateTimeField(
-        auto_now=True)
-
-    def __str__(self):
-        return "Transaction Type %s" % self.name
-
-
-def get_or_create_manual_transaction_type():
-    """
-    Callable for getting or creating the default `TransactionType`.
-    """
-    return TransactionType.objects.get_or_create(name='Manual')[0]
-
-
-def get_or_create_manual_transaction_type_id():
-    """
-    Callable for getting or creating the default `TransactionType` id.
-    """
-    return get_or_create_manual_transaction_type().id
-
-
 if hasattr(TransactionQuerySet, 'as_manager'):
     TRANSACTIONMANAGER = TransactionQuerySet.as_manager 
 else:
@@ -230,6 +230,7 @@ else:
     
         def get_query_set(self):
             return TransactionQuerySet(self.model, using=self._db)      
+
       
 @python_2_unicode_compatible
 class Transaction(models.Model):
@@ -275,8 +276,8 @@ class Transaction(models.Model):
         auto_now=True)
 
     type = models.ForeignKey(
-        TransactionType,
-        default=get_or_create_manual_transaction_type_id,
+        'TransactionType',
+        default=TransactionType.get_or_create_manual_transaction_type_id,
     )
 
     objects = TRANSACTIONMANAGER()
